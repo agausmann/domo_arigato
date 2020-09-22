@@ -93,7 +93,7 @@ impl Serialize for String {
             .try_into()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         VarInt(len).serialize(writer)?;
-        Ok(())
+        writer.write_all(self.as_bytes())
     }
 }
 
