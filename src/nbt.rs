@@ -6,13 +6,31 @@ use std::convert::TryInto;
 const ENDIAN: ctx::Endian = ctx::Endian::Big;
 
 /// A top-level NBT structure.
-#[derive(Debug, Clone, DekuRead, DekuWrite)]
+#[derive(Debug, Clone, PartialEq, DekuRead, DekuWrite)]
 pub struct Nbt {
     tag_type: Tag,
     #[deku(reader = "read_string(rest)", writer = "write_string(&self.name)")]
     name: String,
     #[deku(ctx = "*tag_type")]
     value: Value,
+}
+
+impl Nbt {
+    pub fn new(name: String, value: Value) -> Nbt {
+        Nbt {
+            tag_type: value.tag(),
+            name,
+            value,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DekuRead, DekuWrite)]
@@ -129,6 +147,13 @@ impl DekuRead<Tag> for Value {
                     input = entry_input;
                     compound.insert(name, value);
                 }
+                let (input, end_tag) = Tag::read(input, ())?;
+                if end_tag != Tag::End {
+                    return Err(DekuError::Unexpected(format!(
+                        "expected End tag, found {:?}",
+                        end_tag
+                    )));
+                }
                 Ok((input, Self::Compound(compound)))
             }
             Tag::IntArray => {
@@ -228,4 +253,141 @@ fn write_string(s: &String) -> Result<BitVec<Msb0, u8>, DekuError> {
     acc.extend(len.write(ENDIAN)?);
     acc.extend(bytes.write(ENDIAN)?);
     Ok(acc)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use maplit::hashmap;
+
+    fn test_bidir(bytes: &[u8], nbt: Nbt) {
+        let bits = bytes.view_bits();
+
+        let (rest, nbt_out) = Nbt::read(bits, ()).unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(nbt, nbt_out);
+
+        // Comparing write outputs bit-by-bit doesn't work; compounds don't have a guaranteed
+        // order. Perform a roundtrip instead.
+        let bits_out = nbt.write(()).unwrap();
+        let (rest, roundtrip) = Nbt::read(&bits_out, ()).unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(nbt, roundtrip);
+    }
+
+    #[test]
+    fn test_nbt() {
+        test_bidir(
+            &include_bytes!("test.nbt")[..],
+            Nbt::new(
+                "hello world".into(),
+                Value::Compound(hashmap![
+                    "name".into() => Value::String("Bananrama".into()),
+                ]),
+            ),
+        );
+    }
+
+    #[test]
+    fn bigtest_nbt() {
+        test_bidir(
+            &include_bytes!("bigtest.nbt")[..],
+            Nbt::new(
+                "Level".into(),
+                Value::Compound(hashmap![
+                    "nested compound test".into() => Value::Compound(hashmap![
+                        "egg".into() => Value::Compound(hashmap![
+                            "name".into() => Value::String("Eggbert".into()),
+                            "value".into() => Value::Float(0.5),
+                        ]),
+                        "ham".into() => Value::Compound(hashmap![
+                            "name".into() => Value::String("Hampus".into()),
+                            "value".into() => Value::Float(0.75),
+                        ]),
+                    ]),
+                    "intTest".into() => Value::Int(2147483647),
+                    "byteTest".into() => Value::Byte(127),
+                    "stringTest".into() => Value::String(
+                        "HELLO WORLD THIS IS A TEST STRING ÅÄÖ!".into()
+                    ),
+                    "listTest (long)".into() => Value::List(vec![
+                        Value::Long(11),
+                        Value::Long(12),
+                        Value::Long(13),
+                        Value::Long(14),
+                        Value::Long(15),
+                    ]),
+                    "doubleTest".into() => Value::Double(0.49312871321823148),
+                    "floatTest".into() => Value::Float(0.49823147058486938),
+                    "longTest".into() => Value::Long(9223372036854775807),
+                    "listTest (compound)".into() => Value::List(vec![
+                        Value::Compound(hashmap![
+                            "created-on".into() => Value::Long(1264099775885),
+                            "name".into() => Value::String("Compound tag #0".into()),
+                        ]),
+                        Value::Compound(hashmap![
+                            "created-on".into() => Value::Long(1264099775885),
+                            "name".into() => Value::String("Compound tag #1".into()),
+                        ]),
+                    ]),
+                    "byteArrayTest (the first 1000 values of (n*n*255+n*7)%100, starting with n=0 (0, 62, 34, 16, 8, ...))".into() => Value::ByteArray(vec![
+                        0, 62, 34, 16, 8, 10, 22, 44, 76, 18, 70, 32, 4, 86, 78, 80, 92, 14, 46,
+                        88, 40, 2, 74, 56, 48, 50, 62, 84, 16, 58, 10, 72, 44, 26, 18, 20, 32, 54,
+                        86, 28, 80, 42, 14, 96, 88, 90, 2, 24, 56, 98, 50, 12, 84, 66, 58, 60, 72,
+                        94, 26, 68, 20, 82, 54, 36, 28, 30, 42, 64, 96, 38, 90, 52, 24, 6, 98, 0,
+                        12, 34, 66, 8, 60, 22, 94, 76, 68, 70, 82, 4, 36, 78, 30, 92, 64, 46, 38,
+                        40, 52, 74, 6, 48, 0, 62, 34, 16, 8, 10, 22, 44, 76, 18, 70, 32, 4, 86, 78,
+                        80, 92, 14, 46, 88, 40, 2, 74, 56, 48, 50, 62, 84, 16, 58, 10, 72, 44, 26,
+                        18, 20, 32, 54, 86, 28, 80, 42, 14, 96, 88, 90, 2, 24, 56, 98, 50, 12, 84,
+                        66, 58, 60, 72, 94, 26, 68, 20, 82, 54, 36, 28, 30, 42, 64, 96, 38, 90, 52,
+                        24, 6, 98, 0, 12, 34, 66, 8, 60, 22, 94, 76, 68, 70, 82, 4, 36, 78, 30, 92,
+                        64, 46, 38, 40, 52, 74, 6, 48, 0, 62, 34, 16, 8, 10, 22, 44, 76, 18, 70,
+                        32, 4, 86, 78, 80, 92, 14, 46, 88, 40, 2, 74, 56, 48, 50, 62, 84, 16, 58,
+                        10, 72, 44, 26, 18, 20, 32, 54, 86, 28, 80, 42, 14, 96, 88, 90, 2, 24, 56,
+                        98, 50, 12, 84, 66, 58, 60, 72, 94, 26, 68, 20, 82, 54, 36, 28, 30, 42, 64,
+                        96, 38, 90, 52, 24, 6, 98, 0, 12, 34, 66, 8, 60, 22, 94, 76, 68, 70, 82, 4,
+                        36, 78, 30, 92, 64, 46, 38, 40, 52, 74, 6, 48, 0, 62, 34, 16, 8, 10, 22,
+                        44, 76, 18, 70, 32, 4, 86, 78, 80, 92, 14, 46, 88, 40, 2, 74, 56, 48, 50,
+                        62, 84, 16, 58, 10, 72, 44, 26, 18, 20, 32, 54, 86, 28, 80, 42, 14, 96, 88,
+                        90, 2, 24, 56, 98, 50, 12, 84, 66, 58, 60, 72, 94, 26, 68, 20, 82, 54, 36,
+                        28, 30, 42, 64, 96, 38, 90, 52, 24, 6, 98, 0, 12, 34, 66, 8, 60, 22, 94,
+                        76, 68, 70, 82, 4, 36, 78, 30, 92, 64, 46, 38, 40, 52, 74, 6, 48, 0, 62,
+                        34, 16, 8, 10, 22, 44, 76, 18, 70, 32, 4, 86, 78, 80, 92, 14, 46, 88, 40,
+                        2, 74, 56, 48, 50, 62, 84, 16, 58, 10, 72, 44, 26, 18, 20, 32, 54, 86, 28,
+                        80, 42, 14, 96, 88, 90, 2, 24, 56, 98, 50, 12, 84, 66, 58, 60, 72, 94, 26,
+                        68, 20, 82, 54, 36, 28, 30, 42, 64, 96, 38, 90, 52, 24, 6, 98, 0, 12, 34,
+                        66, 8, 60, 22, 94, 76, 68, 70, 82, 4, 36, 78, 30, 92, 64, 46, 38, 40, 52,
+                        74, 6, 48, 0, 62, 34, 16, 8, 10, 22, 44, 76, 18, 70, 32, 4, 86, 78, 80, 92,
+                        14, 46, 88, 40, 2, 74, 56, 48, 50, 62, 84, 16, 58, 10, 72, 44, 26, 18, 20,
+                        32, 54, 86, 28, 80, 42, 14, 96, 88, 90, 2, 24, 56, 98, 50, 12, 84, 66, 58,
+                        60, 72, 94, 26, 68, 20, 82, 54, 36, 28, 30, 42, 64, 96, 38, 90, 52, 24, 6,
+                        98, 0, 12, 34, 66, 8, 60, 22, 94, 76, 68, 70, 82, 4, 36, 78, 30, 92, 64,
+                        46, 38, 40, 52, 74, 6, 48, 0, 62, 34, 16, 8, 10, 22, 44, 76, 18, 70, 32, 4,
+                        86, 78, 80, 92, 14, 46, 88, 40, 2, 74, 56, 48, 50, 62, 84, 16, 58, 10, 72,
+                        44, 26, 18, 20, 32, 54, 86, 28, 80, 42, 14, 96, 88, 90, 2, 24, 56, 98, 50,
+                        12, 84, 66, 58, 60, 72, 94, 26, 68, 20, 82, 54, 36, 28, 30, 42, 64, 96, 38,
+                        90, 52, 24, 6, 98, 0, 12, 34, 66, 8, 60, 22, 94, 76, 68, 70, 82, 4, 36, 78,
+                        30, 92, 64, 46, 38, 40, 52, 74, 6, 48, 0, 62, 34, 16, 8, 10, 22, 44, 76,
+                        18, 70, 32, 4, 86, 78, 80, 92, 14, 46, 88, 40, 2, 74, 56, 48, 50, 62, 84,
+                        16, 58, 10, 72, 44, 26, 18, 20, 32, 54, 86, 28, 80, 42, 14, 96, 88, 90, 2,
+                        24, 56, 98, 50, 12, 84, 66, 58, 60, 72, 94, 26, 68, 20, 82, 54, 36, 28, 30,
+                        42, 64, 96, 38, 90, 52, 24, 6, 98, 0, 12, 34, 66, 8, 60, 22, 94, 76, 68,
+                        70, 82, 4, 36, 78, 30, 92, 64, 46, 38, 40, 52, 74, 6, 48, 0, 62, 34, 16, 8,
+                        10, 22, 44, 76, 18, 70, 32, 4, 86, 78, 80, 92, 14, 46, 88, 40, 2, 74, 56,
+                        48, 50, 62, 84, 16, 58, 10, 72, 44, 26, 18, 20, 32, 54, 86, 28, 80, 42, 14,
+                        96, 88, 90, 2, 24, 56, 98, 50, 12, 84, 66, 58, 60, 72, 94, 26, 68, 20, 82,
+                        54, 36, 28, 30, 42, 64, 96, 38, 90, 52, 24, 6, 98, 0, 12, 34, 66, 8, 60,
+                        22, 94, 76, 68, 70, 82, 4, 36, 78, 30, 92, 64, 46, 38, 40, 52, 74, 6, 48,
+                        0, 62, 34, 16, 8, 10, 22, 44, 76, 18, 70, 32, 4, 86, 78, 80, 92, 14, 46,
+                        88, 40, 2, 74, 56, 48, 50, 62, 84, 16, 58, 10, 72, 44, 26, 18, 20, 32, 54,
+                        86, 28, 80, 42, 14, 96, 88, 90, 2, 24, 56, 98, 50, 12, 84, 66, 58, 60, 72,
+                        94, 26, 68, 20, 82, 54, 36, 28, 30, 42, 64, 96, 38, 90, 52, 24, 6, 98, 0,
+                        12, 34, 66, 8, 60, 22, 94, 76, 68, 70, 82, 4, 36, 78, 30, 92, 64, 46, 38,
+                        40, 52, 74, 6, 48,
+                    ]),
+                    "shortTest".into() => Value::Short(32767),
+                ]),
+            ),
+        );
+    }
 }
