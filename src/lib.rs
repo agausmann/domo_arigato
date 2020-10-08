@@ -1,2 +1,2 @@
 pub mod nbt;
-pub mod proto;
+pub mod util;

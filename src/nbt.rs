@@ -1,24 +1,25 @@
-use deku::ctx;
-use deku::prelude::*;
+use crate::util::io_error;
+use declio::ctx::{Endian, Len};
+use declio::{Decode, Encode};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryInto;
-
-const ENDIAN: ctx::Endian = ctx::Endian::Big;
+use std::io;
 
 /// A top-level NBT structure.
-#[derive(Debug, Clone, PartialEq, DekuRead, DekuWrite)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct Nbt {
-    tag_type: Tag,
-    #[deku(reader = "read_string(rest)", writer = "write_string(&self.name)")]
+    tag: Tag,
+    #[declio(with = "string")]
     name: String,
-    #[deku(ctx = "*tag_type")]
+    #[declio(ctx(decode = "*tag"))]
     value: Value,
 }
 
 impl Nbt {
     pub fn new(name: String, value: Value) -> Nbt {
         Nbt {
-            tag_type: value.tag(),
+            tag: value.tag(),
             name,
             value,
         }
@@ -33,52 +34,66 @@ impl Nbt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, DekuRead, DekuWrite)]
-#[deku(endian = "big", id_type = "u8")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[declio(id_type = "u8", id_ctx = "Endian::Big")]
 pub enum Tag {
-    #[deku(id = "0")]
+    #[declio(id = "0")]
     End,
-    #[deku(id = "1")]
+    #[declio(id = "1")]
     Byte,
-    #[deku(id = "2")]
+    #[declio(id = "2")]
     Short,
-    #[deku(id = "3")]
+    #[declio(id = "3")]
     Int,
-    #[deku(id = "4")]
+    #[declio(id = "4")]
     Long,
-    #[deku(id = "5")]
+    #[declio(id = "5")]
     Float,
-    #[deku(id = "6")]
+    #[declio(id = "6")]
     Double,
-    #[deku(id = "7")]
+    #[declio(id = "7")]
     ByteArray,
-    #[deku(id = "8")]
+    #[declio(id = "8")]
     String,
-    #[deku(id = "9")]
+    #[declio(id = "9")]
     List,
-    #[deku(id = "10")]
+    #[declio(id = "10")]
     Compound,
-    #[deku(id = "11")]
+    #[declio(id = "11")]
     IntArray,
-    #[deku(id = "12")]
+    #[declio(id = "12")]
     LongArray,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+#[declio(ctx(decode = "tag: Tag"), id_expr = "tag")]
 pub enum Value {
+    #[declio(id = "Tag::End")]
     End,
-    Byte(i8),
-    Short(i16),
-    Int(i32),
-    Long(i64),
-    Float(f32),
-    Double(f64),
-    ByteArray(Vec<i8>),
-    String(String),
-    List(Vec<Value>),
-    Compound(HashMap<String, Value>),
-    IntArray(Vec<i32>),
-    LongArray(Vec<i64>),
+    #[declio(id = "Tag::Byte")]
+    Byte(#[declio(ctx = "Endian::Big")] i8),
+    #[declio(id = "Tag::Short")]
+    Short(#[declio(ctx = "Endian::Big")] i16),
+    #[declio(id = "Tag::Int")]
+    Int(#[declio(ctx = "Endian::Big")] i32),
+    #[declio(id = "Tag::Long")]
+    Long(#[declio(ctx = "Endian::Big")] i64),
+    #[declio(id = "Tag::Float")]
+    Float(#[declio(ctx = "Endian::Big")] f32),
+    #[declio(id = "Tag::Double")]
+    Double(#[declio(ctx = "Endian::Big")] f64),
+    #[declio(id = "Tag::ByteArray")]
+    ByteArray(#[declio(with = "array")] Vec<i8>),
+    #[declio(id = "Tag::String")]
+    String(#[declio(with = "string")] String),
+    #[declio(id = "Tag::List")]
+    List(#[declio(with = "list")] Vec<Value>),
+    #[declio(id = "Tag::Compound")]
+    Compound(#[declio(with = "compound")] HashMap<String, Value>),
+    #[declio(id = "Tag::IntArray")]
+    IntArray(#[declio(with = "array")] Vec<i32>),
+    #[declio(id = "Tag::LongArray")]
+    LongArray(#[declio(with = "array")] Vec<i64>),
 }
 
 impl Value {
@@ -101,158 +116,149 @@ impl Value {
     }
 }
 
-impl DekuRead<Tag> for Value {
-    fn read(
-        input: &BitSlice<Msb0, u8>,
-        type_tag: Tag,
-    ) -> Result<(&BitSlice<Msb0, u8>, Self), DekuError> {
-        match type_tag {
-            Tag::End => Ok((input, Self::End)),
-            Tag::Byte => DekuRead::read(input, ENDIAN).map(|(r, v)| (r, Self::Byte(v))),
-            Tag::Short => DekuRead::read(input, ENDIAN).map(|(r, v)| (r, Self::Short(v))),
-            Tag::Int => DekuRead::read(input, ENDIAN).map(|(r, v)| (r, Self::Int(v))),
-            Tag::Long => DekuRead::read(input, ENDIAN).map(|(r, v)| (r, Self::Long(v))),
-            Tag::Float => DekuRead::read(input, ENDIAN).map(|(r, v)| (r, Self::Float(v))),
-            Tag::Double => DekuRead::read(input, ENDIAN).map(|(r, v)| (r, Self::Double(v))),
-            Tag::ByteArray => {
-                let (input, len) = i32::read(input, ENDIAN)?;
-                let len: usize = len.try_into()?;
-                DekuRead::read(input, (len.into(), ENDIAN)).map(|(r, v)| (r, Self::ByteArray(v)))
-            }
-            Tag::String => {
-                let (input, len) = u16::read(input, ENDIAN)?;
-                let len: usize = len.try_into()?;
-                let (input, bytes) = Vec::read(input, (len.into(), ENDIAN))?;
-                let string = cesu8::from_java_cesu8(&bytes)
-                    .map_err(|e| DekuError::Parse(e.to_string()))?
-                    .into_owned();
-                Ok((input, Self::String(string)))
-            }
-            Tag::List => {
-                let (input, type_tag) = Tag::read(input, ())?;
-                let (input, len) = i32::read(input, ENDIAN)?;
-                let len: usize = len.try_into()?;
-                DekuRead::read(input, (len.into(), type_tag)).map(|(r, v)| (r, Self::List(v)))
-            }
-            Tag::Compound => {
-                let mut input = input;
-                let mut compound = HashMap::new();
-                loop {
-                    let (entry_input, type_tag) = Tag::read(input, ())?;
-                    if type_tag == Tag::End {
-                        break;
-                    }
-                    let (entry_input, name) = read_string(entry_input)?;
-                    let (entry_input, value) = Self::read(entry_input, type_tag)?;
-                    input = entry_input;
-                    compound.insert(name, value);
-                }
-                let (input, end_tag) = Tag::read(input, ())?;
-                if end_tag != Tag::End {
-                    return Err(DekuError::Unexpected(format!(
-                        "expected End tag, found {:?}",
-                        end_tag
-                    )));
-                }
-                Ok((input, Self::Compound(compound)))
-            }
-            Tag::IntArray => {
-                let (input, len) = i32::read(input, ENDIAN)?;
-                let len: usize = len.try_into()?;
-                DekuRead::read(input, (len.into(), ENDIAN)).map(|(r, v)| (r, Self::IntArray(v)))
-            }
-            Tag::LongArray => {
-                let (input, len) = i32::read(input, ENDIAN)?;
-                let len: usize = len.try_into()?;
-                DekuRead::read(input, (len.into(), ENDIAN)).map(|(r, v)| (r, Self::LongArray(v)))
+mod array {
+    use super::*;
+
+    #[derive(Encode, Decode)]
+    struct Helper<'a, T>
+    where
+        T: Encode<Endian> + Decode<Endian> + Clone,
+    {
+        #[declio(ctx = "Endian::Big")]
+        len: i32,
+        #[declio(ctx(encode = "Endian::Big", decode = "(Len(*len as usize), Endian::Big)"))]
+        arr: Cow<'a, Vec<T>>,
+    }
+
+    pub fn encode<W, T>(arr: &Vec<T>, _: (), writer: &mut W) -> Result<(), io::Error>
+    where
+        W: io::Write,
+        T: Encode<Endian> + Decode<Endian> + Clone,
+    {
+        Helper {
+            len: arr.len().try_into().map_err(io_error::invalid_input)?,
+            arr: Cow::Borrowed(arr),
+        }
+        .encode((), writer)
+    }
+
+    pub fn decode<R, T>(_: (), reader: &mut R) -> Result<Vec<T>, io::Error>
+    where
+        R: io::Read,
+        T: Encode<Endian> + Decode<Endian> + Clone,
+    {
+        Helper::decode((), reader).map(|helper| helper.arr.into_owned())
+    }
+}
+
+mod string {
+    use super::*;
+
+    #[derive(Encode, Decode)]
+    struct Helper<'a> {
+        #[declio(ctx = "Endian::Big")]
+        len: u16,
+        #[declio(ctx(encode = "Endian::Big", decode = "(Len(*len as usize), Endian::Big)"))]
+        bytes: Cow<'a, [u8]>,
+    }
+
+    pub fn encode<W>(string: &String, _: (), writer: &mut W) -> Result<(), io::Error>
+    where
+        W: io::Write,
+    {
+        let bytes = cesu8::to_java_cesu8(&string);
+        Helper {
+            len: bytes.len().try_into().map_err(io_error::invalid_input)?,
+            bytes,
+        }
+        .encode((), writer)
+    }
+
+    pub fn decode<R>(_: (), reader: &mut R) -> Result<String, io::Error>
+    where
+        R: io::Read,
+    {
+        Helper::decode((), reader).and_then(|helper| {
+            cesu8::from_java_cesu8(&helper.bytes)
+                .map(Cow::into_owned)
+                .map_err(io_error::invalid_data)
+        })
+    }
+}
+
+mod list {
+    use super::*;
+
+    #[derive(Encode, Decode)]
+    struct Helper<'a> {
+        tag: Tag,
+        #[declio(ctx = "Endian::Big")]
+        len: i32,
+        #[declio(ctx(decode = "(Len(*len as usize), *tag)"))]
+        list: Cow<'a, Vec<Value>>,
+    }
+
+    pub fn encode<W>(list: &Vec<Value>, _: (), writer: &mut W) -> Result<(), io::Error>
+    where
+        W: io::Write,
+    {
+        let tag = list.first().map(Value::tag).unwrap_or(Tag::End);
+        for elem in list {
+            if elem.tag() != tag {
+                return Err(io_error::invalid_input(
+                    "types of NBT elements do not match",
+                ));
             }
         }
-    }
-}
-
-impl DekuWrite<Tag> for Value {
-    fn write(&self, tag_type: Tag) -> Result<BitVec<Msb0, u8>, DekuError> {
-        assert!(tag_type == self.tag());
-        self.write(())
-    }
-}
-
-impl DekuWrite for Value {
-    fn write(&self, _: ()) -> Result<BitVec<Msb0, u8>, DekuError> {
-        match self {
-            Self::End => Ok(BitVec::new()),
-            Self::Byte(v) => v.write(ENDIAN),
-            Self::Short(v) => v.write(ENDIAN),
-            Self::Int(v) => v.write(ENDIAN),
-            Self::Long(v) => v.write(ENDIAN),
-            Self::Float(v) => v.write(ENDIAN),
-            Self::Double(v) => v.write(ENDIAN),
-            Self::ByteArray(v) => {
-                let len: i32 = v.len().try_into()?;
-                let mut acc = BitVec::new();
-                acc.extend(len.write(ENDIAN)?);
-                acc.extend(v.write(ENDIAN)?);
-                Ok(acc)
-            }
-            Self::String(v) => write_string(v),
-            Self::List(v) => {
-                let type_tag = v.first().map(Self::tag).unwrap_or(Tag::End);
-                let len: i32 = v.len().try_into()?;
-                if v.iter().any(|val| val.tag() != type_tag) {
-                    return Err(DekuError::InvalidParam("list type mismatch".to_string()));
-                }
-                let mut acc = BitVec::new();
-                acc.extend(type_tag.write(())?);
-                acc.extend(len.write(ENDIAN)?);
-                acc.extend(v.write(())?);
-                Ok(acc)
-            }
-            Self::Compound(v) => {
-                let mut acc = BitVec::new();
-                for (name, value) in v {
-                    let type_tag = value.tag();
-                    acc.extend(type_tag.write(())?);
-                    acc.extend(write_string(name)?);
-                    acc.extend(value.write(())?);
-                }
-                acc.extend(Tag::End.write(())?);
-                Ok(acc)
-            }
-            Self::IntArray(v) => {
-                let len: i32 = v.len().try_into()?;
-                let mut acc = BitVec::new();
-                acc.extend(len.write(ENDIAN)?);
-                acc.extend(v.write(ENDIAN)?);
-                Ok(acc)
-            }
-            Self::LongArray(v) => {
-                let len: i32 = v.len().try_into()?;
-                let mut acc = BitVec::new();
-                acc.extend(len.write(ENDIAN)?);
-                acc.extend(v.write(ENDIAN)?);
-                Ok(acc)
-            }
+        Helper {
+            tag,
+            len: list.len().try_into().map_err(io_error::invalid_input)?,
+            list: Cow::Borrowed(list),
         }
+        .encode((), writer)
+    }
+
+    pub fn decode<R>(_: (), reader: &mut R) -> Result<Vec<Value>, io::Error>
+    where
+        R: io::Read,
+    {
+        Helper::decode((), reader).map(|helper| helper.list.into_owned())
     }
 }
 
-fn read_string(input: &BitSlice<Msb0, u8>) -> Result<(&BitSlice<Msb0, u8>, String), DekuError> {
-    let (input, len) = u16::read(input, ENDIAN)?;
-    let len: usize = len.try_into()?;
-    let (input, bytes) = Vec::read(input, (len.into(), ENDIAN))?;
-    let string = cesu8::from_java_cesu8(&bytes)
-        .map_err(|e| DekuError::Parse(e.to_string()))?
-        .into_owned();
-    Ok((input, string))
-}
+mod compound {
+    use super::*;
 
-fn write_string(s: &String) -> Result<BitVec<Msb0, u8>, DekuError> {
-    let len: u16 = s.len().try_into()?;
-    let bytes = cesu8::to_java_cesu8(&s).into_owned();
-    let mut acc = BitVec::new();
-    acc.extend(len.write(ENDIAN)?);
-    acc.extend(bytes.write(ENDIAN)?);
-    Ok(acc)
+    pub fn encode<W>(this: &HashMap<String, Value>, _: (), writer: &mut W) -> Result<(), io::Error>
+    where
+        W: io::Write,
+    {
+        for (name, value) in this {
+            eprintln!("{:?}", value.tag());
+            value.tag().encode((), writer)?;
+            string::encode(name, (), writer)?;
+            value.encode((), writer)?;
+        }
+        Tag::End.encode((), writer)?;
+        Ok(())
+    }
+
+    pub fn decode<R>(_: (), reader: &mut R) -> Result<HashMap<String, Value>, io::Error>
+    where
+        R: io::Read,
+    {
+        let mut acc = HashMap::new();
+        loop {
+            let tag = Tag::decode((), reader)?;
+            if tag == Tag::End {
+                break;
+            }
+            let name = string::decode((), reader)?;
+            let value = Value::decode(tag, reader)?;
+            acc.insert(name, value);
+        }
+        Ok(acc)
+    }
 }
 
 #[cfg(test)]
@@ -261,18 +267,20 @@ mod tests {
     use maplit::hashmap;
 
     fn test_bidir(bytes: &[u8], nbt: Nbt) {
-        let bits = bytes.view_bits();
-
-        let (rest, nbt_out) = Nbt::read(bits, ()).unwrap();
-        assert!(rest.is_empty());
-        assert_eq!(nbt, nbt_out);
+        let mut dec_input = bytes;
+        let dec_output = Nbt::decode((), &mut dec_input).unwrap();
+        assert!(dec_input.is_empty());
+        assert_eq!(nbt, dec_output);
 
         // Comparing write outputs bit-by-bit doesn't work; compounds don't have a guaranteed
         // order. Perform a roundtrip instead.
-        let bits_out = nbt.write(()).unwrap();
-        let (rest, roundtrip) = Nbt::read(&bits_out, ()).unwrap();
-        assert!(rest.is_empty());
-        assert_eq!(nbt, roundtrip);
+        let mut enc_output = Vec::new();
+        nbt.encode((), &mut enc_output).unwrap();
+        eprintln!("{:?}", &enc_output);
+        let mut rt_input = enc_output.as_slice();
+        let rt_output = Nbt::decode((), &mut rt_input).unwrap();
+        assert!(rt_input.is_empty());
+        assert_eq!(nbt, rt_output);
     }
 
     #[test]
