@@ -1,9 +1,8 @@
-use crate::util::io_error;
-use declio::ctx::{Endian, Len};
+use declio::ctx::Len;
 use declio::{Decode, Encode};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::io;
 
 /// A top-level NBT structure.
@@ -35,7 +34,7 @@ impl Nbt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
-#[declio(id_type = "u8", id_ctx = "Endian::Big")]
+#[declio(id_type = "u8")]
 pub enum Tag {
     #[declio(id = "0")]
     End,
@@ -71,17 +70,17 @@ pub enum Value {
     #[declio(id = "Tag::End")]
     End,
     #[declio(id = "Tag::Byte")]
-    Byte(#[declio(ctx = "Endian::Big")] i8),
+    Byte(i8),
     #[declio(id = "Tag::Short")]
-    Short(#[declio(ctx = "Endian::Big")] i16),
+    Short(i16),
     #[declio(id = "Tag::Int")]
-    Int(#[declio(ctx = "Endian::Big")] i32),
+    Int(i32),
     #[declio(id = "Tag::Long")]
-    Long(#[declio(ctx = "Endian::Big")] i64),
+    Long(i64),
     #[declio(id = "Tag::Float")]
-    Float(#[declio(ctx = "Endian::Big")] f32),
+    Float(f32),
     #[declio(id = "Tag::Double")]
-    Double(#[declio(ctx = "Endian::Big")] f64),
+    Double(f64),
     #[declio(id = "Tag::ByteArray")]
     ByteArray(#[declio(with = "array")] Vec<i8>),
     #[declio(id = "Tag::String")]
@@ -122,30 +121,29 @@ mod array {
     #[derive(Encode, Decode)]
     struct Helper<'a, T>
     where
-        T: Encode<Endian> + Decode<Endian> + Clone,
+        T: Encode + Decode + Clone,
     {
-        #[declio(ctx = "Endian::Big")]
         len: i32,
-        #[declio(ctx(encode = "Endian::Big", decode = "(Len(*len as usize), Endian::Big)"))]
+        #[declio(ctx(decode = "Len::try_from(len)?"))]
         arr: Cow<'a, Vec<T>>,
     }
 
-    pub fn encode<W, T>(arr: &Vec<T>, _: (), writer: &mut W) -> Result<(), io::Error>
+    pub fn encode<W, T>(arr: &Vec<T>, _: (), writer: &mut W) -> Result<(), declio::Error>
     where
         W: io::Write,
-        T: Encode<Endian> + Decode<Endian> + Clone,
+        T: Encode + Decode + Clone,
     {
         Helper {
-            len: arr.len().try_into().map_err(io_error::invalid_input)?,
+            len: arr.len().try_into()?,
             arr: Cow::Borrowed(arr),
         }
         .encode((), writer)
     }
 
-    pub fn decode<R, T>(_: (), reader: &mut R) -> Result<Vec<T>, io::Error>
+    pub fn decode<R, T>(_: (), reader: &mut R) -> Result<Vec<T>, declio::Error>
     where
         R: io::Read,
-        T: Encode<Endian> + Decode<Endian> + Clone,
+        T: Encode + Decode + Clone,
     {
         Helper::decode((), reader).map(|helper| helper.arr.into_owned())
     }
@@ -156,32 +154,31 @@ mod string {
 
     #[derive(Encode, Decode)]
     struct Helper<'a> {
-        #[declio(ctx = "Endian::Big")]
         len: u16,
-        #[declio(ctx(encode = "Endian::Big", decode = "(Len(*len as usize), Endian::Big)"))]
+        #[declio(ctx(decode = "Len::try_from(len)?"))]
         bytes: Cow<'a, [u8]>,
     }
 
-    pub fn encode<W>(string: &String, _: (), writer: &mut W) -> Result<(), io::Error>
+    pub fn encode<W>(string: &String, _: (), writer: &mut W) -> Result<(), declio::Error>
     where
         W: io::Write,
     {
         let bytes = cesu8::to_java_cesu8(&string);
         Helper {
-            len: bytes.len().try_into().map_err(io_error::invalid_input)?,
+            len: bytes.len().try_into()?,
             bytes,
         }
         .encode((), writer)
     }
 
-    pub fn decode<R>(_: (), reader: &mut R) -> Result<String, io::Error>
+    pub fn decode<R>(_: (), reader: &mut R) -> Result<String, declio::Error>
     where
         R: io::Read,
     {
         Helper::decode((), reader).and_then(|helper| {
             cesu8::from_java_cesu8(&helper.bytes)
                 .map(Cow::into_owned)
-                .map_err(io_error::invalid_data)
+                .map_err(declio::Error::wrap)
         })
     }
 }
@@ -192,33 +189,30 @@ mod list {
     #[derive(Encode, Decode)]
     struct Helper<'a> {
         tag: Tag,
-        #[declio(ctx = "Endian::Big")]
         len: i32,
-        #[declio(ctx(decode = "(Len(*len as usize), *tag)"))]
+        #[declio(ctx(decode = "(Len::try_from(len)?, *tag)"))]
         list: Cow<'a, Vec<Value>>,
     }
 
-    pub fn encode<W>(list: &Vec<Value>, _: (), writer: &mut W) -> Result<(), io::Error>
+    pub fn encode<W>(list: &Vec<Value>, _: (), writer: &mut W) -> Result<(), declio::Error>
     where
         W: io::Write,
     {
         let tag = list.first().map(Value::tag).unwrap_or(Tag::End);
         for elem in list {
             if elem.tag() != tag {
-                return Err(io_error::invalid_input(
-                    "types of NBT elements do not match",
-                ));
+                return Err(declio::Error::new("types of NBT elements do not match"));
             }
         }
         Helper {
             tag,
-            len: list.len().try_into().map_err(io_error::invalid_input)?,
+            len: list.len().try_into()?,
             list: Cow::Borrowed(list),
         }
         .encode((), writer)
     }
 
-    pub fn decode<R>(_: (), reader: &mut R) -> Result<Vec<Value>, io::Error>
+    pub fn decode<R>(_: (), reader: &mut R) -> Result<Vec<Value>, declio::Error>
     where
         R: io::Read,
     {
@@ -229,7 +223,11 @@ mod list {
 mod compound {
     use super::*;
 
-    pub fn encode<W>(this: &HashMap<String, Value>, _: (), writer: &mut W) -> Result<(), io::Error>
+    pub fn encode<W>(
+        this: &HashMap<String, Value>,
+        _: (),
+        writer: &mut W,
+    ) -> Result<(), declio::Error>
     where
         W: io::Write,
     {
@@ -243,7 +241,7 @@ mod compound {
         Ok(())
     }
 
-    pub fn decode<R>(_: (), reader: &mut R) -> Result<HashMap<String, Value>, io::Error>
+    pub fn decode<R>(_: (), reader: &mut R) -> Result<HashMap<String, Value>, declio::Error>
     where
         R: io::Read,
     {
