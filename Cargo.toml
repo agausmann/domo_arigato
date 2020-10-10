@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 cesu8 = "1.1.0"
 declio = { path = "../declio/declio" }
+flate2 = "1.0"
 
 [dev-dependencies]
 maplit = "1.0.2"
