@@ -8,10 +8,13 @@ pub use self::login::Login;
 pub use self::play::Play;
 pub use self::status::Status;
 
-use std::net::TcpStream;
+use crate::proto::TransportSession;
 
 pub fn connect(host: String, port: u16, version: i32) -> anyhow::Result<Handshake> {
-    let reader = TcpStream::connect((host.as_str(), port))?;
-    let writer = reader.try_clone()?;
-    Ok(Handshake::new(reader, writer, host, port, version))
+    Ok(Handshake::new(
+        TransportSession::connect(host.as_str(), port)?,
+        host,
+        port,
+        version,
+    ))
 }

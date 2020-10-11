@@ -12,7 +12,7 @@ pub enum Clientbound {
     EncryptionRequest {
         server_id: String,
         #[declio(with = "LengthPrefix::<VarInt>")]
-        public_key: ByteArray,
+        public_key_der: ByteArray,
         #[declio(with = "LengthPrefix::<VarInt>")]
         verify_token: ByteArray,
     },
