@@ -1,6 +1,7 @@
 use crate::nbt::Nbt;
 use declio::ctx::Len;
 use declio::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 use std::io;
 use std::num::TryFromIntError;
@@ -54,8 +55,11 @@ impl Decode for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct Chat(pub String);
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Chat(pub serde_json::Value);
+
+impl_declio_from_json!(Chat);
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct Identifier(pub String);

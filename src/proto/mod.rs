@@ -31,6 +31,7 @@ where
     packet.encode((), &mut buf)?;
     VarInt(buf.len().try_into()?).encode((), &mut writer)?;
     writer.write_all(&buf)?;
+    writer.flush()?;
     Ok(())
 }
 
@@ -77,5 +78,6 @@ where
     VarInt((header_buf.len() + data_buf.len()).try_into()?).encode((), &mut writer)?;
     writer.write_all(&header_buf)?;
     writer.write_all(&data_buf)?;
+    writer.flush()?;
     Ok(())
 }

@@ -20,7 +20,7 @@ impl<L> LengthPrefix<L> {
         W: io::Write,
         L: Encode,
         Len: TryInto<L>,
-        <Len as TryInto<L>>::Error: std::error::Error + 'static,
+        <Len as TryInto<L>>::Error: std::error::Error + Send + Sync + 'static,
     {
         Len(this.len())
             .try_into()
@@ -36,7 +36,7 @@ impl<L> LengthPrefix<L> {
         Ctx: Clone,
         R: io::Read,
         L: Decode + TryInto<Len>,
-        <L as TryInto<Len>>::Error: std::error::Error + 'static,
+        <L as TryInto<Len>>::Error: std::error::Error + Send + Sync + 'static,
     {
         let len = L::decode((), reader)?.try_into().map_err(Error::wrap)?;
         Vec::decode((len, inner_ctx), reader)
