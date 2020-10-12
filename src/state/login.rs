@@ -1,6 +1,8 @@
+use crate::auth::Authentication;
 use crate::proto::login::{Clientbound, Serverbound};
 use crate::proto::TransportSession;
 use crate::state::Play;
+use anyhow::Context;
 use rsa::{PaddingScheme, PublicKey, RSAPublicKey};
 use serde_json::json;
 use sha1::{Digest, Sha1};
@@ -22,30 +24,23 @@ where
         Self { session }
     }
 
-    pub fn login(
-        mut self,
-        name: String,
-        uuid: String,
-        access_token: String,
-    ) -> anyhow::Result<Play<R, W>> {
-        self.session
-            .write_packet(&Serverbound::LoginStart { name: name.into() })?;
+    pub fn login(mut self, auth: &Authentication) -> anyhow::Result<Play<R, W>> {
+        self.session.write_packet(&Serverbound::LoginStart {
+            name: auth.name().to_string().into(),
+        })?;
 
         loop {
             match self.session.read_packet()? {
                 Clientbound::Disconnect { reason } => {
-                    return Err(anyhow::Error::msg(format!("{:?}", reason)));
+                    return Err(anyhow::Error::msg(format!("disconnected: {:?}", reason)));
                 }
                 Clientbound::EncryptionRequest {
                     server_id,
                     public_key_der,
                     verify_token,
                 } => {
-                    let public_key_pem = format!(
-                        "-----BEGIN PUBLIC KEY-----{}-----END PUBLIC KEY-----",
-                        base64::encode(&public_key_der),
-                    );
-                    let public_key = RSAPublicKey::from_pkcs1(public_key_pem.as_bytes())?;
+                    let public_key = RSAPublicKey::from_pkcs8(&public_key_der)
+                        .context("received bad key from server")?;
                     let shared_secret: [u8; 16] = rand::random();
 
                     let shared_secret_encrypted = public_key.encrypt(
@@ -81,19 +76,21 @@ where
                         }
                     }
                     for byte in hash.as_slice() {
-                        write!(hexdigest, "{:2x}", byte).unwrap();
+                        write!(hexdigest, "{:02x}", byte).unwrap();
                     }
 
                     let client = reqwest::blocking::Client::new();
-                    client
+                    let response = client
                         .post("https://sessionserver.mojang.com/session/minecraft/join")
                         .json(&json!({
-                            "accessToken": access_token,
-                            "selectedProfile": uuid,
+                            "accessToken": auth.access_token(),
+                            "selectedProfile": auth.uuid(),
                             "serverId": hexdigest,
                         }))
-                        .send()?
-                        .error_for_status()?;
+                        .send()?;
+                    response
+                        .error_for_status_ref()
+                        .context("session server error")?;
 
                     self.session
                         .write_packet(&Serverbound::EncryptionResponse {
@@ -104,7 +101,7 @@ where
                     self.session.enable_encryption(shared_secret)?;
                 }
                 Clientbound::LoginSuccess { uuid, username } => {
-                    return Ok(Play::new(self.session, uuid.into(), username.into()));
+                    return Ok(Play::new(self.session, uuid, username.into()));
                 }
                 Clientbound::SetCompression { threshold } => {
                     let threshold = if threshold.0 < 0 {

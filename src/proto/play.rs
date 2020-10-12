@@ -1,7 +1,6 @@
 use crate::nbt::Nbt;
 use crate::proto::types::*;
 use crate::util::{Greedy, LengthPrefix};
-use declio::ctx::Len;
 use declio::{Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -33,15 +32,6 @@ pub enum Clientbound {
     },
 
     #[declio(id = "VarInt(0x02)")]
-    SpawnWeatherEntity {
-        entity_id: VarInt,
-        type_: Byte,
-        x: Double,
-        y: Double,
-        z: Double,
-    },
-
-    #[declio(id = "VarInt(0x03)")]
     SpawnLivingEntity {
         entity_id: VarInt,
         entity_uuid: Uuid,
@@ -57,7 +47,7 @@ pub enum Clientbound {
         velocity_z: Short,
     },
 
-    #[declio(id = "VarInt(0x04)")]
+    #[declio(id = "VarInt(0x03)")]
     SpawnPainting {
         entity_id: VarInt,
         entity_uuid: Uuid,
@@ -66,7 +56,7 @@ pub enum Clientbound {
         direction: Byte,
     },
 
-    #[declio(id = "VarInt(0x05)")]
+    #[declio(id = "VarInt(0x04)")]
     SpawnPlayer {
         entity_id: VarInt,
         player_uuid: Uuid,
@@ -77,16 +67,16 @@ pub enum Clientbound {
         pitch: Angle,
     },
 
-    #[declio(id = "VarInt(0x06)")]
+    #[declio(id = "VarInt(0x05)")]
     EntityAnimation { entity_id: VarInt, animation: UByte },
 
-    #[declio(id = "VarInt(0x07)")]
+    #[declio(id = "VarInt(0x06)")]
     Statistics {
         #[declio(with = "LengthPrefix::<VarInt>")]
         statistics: Vec<Statistic>,
     },
 
-    #[declio(id = "VarInt(0x08)")]
+    #[declio(id = "VarInt(0x07)")]
     AcknowledgePlayerDigging {
         location: Position,
         block: VarInt,
@@ -94,21 +84,21 @@ pub enum Clientbound {
         success: Boolean,
     },
 
-    #[declio(id = "VarInt(0x09)")]
+    #[declio(id = "VarInt(0x08)")]
     BlockBreakAnimation {
         entity_id: VarInt,
         location: Position,
         destroy_stage: Byte,
     },
 
-    #[declio(id = "VarInt(0x0a)")]
+    #[declio(id = "VarInt(0x09)")]
     BlockEntityData {
         location: Position,
         action: UByte,
         nbt_data: Nbt,
     },
 
-    #[declio(id = "VarInt(0x0b)")]
+    #[declio(id = "VarInt(0x0a)")]
     BlockAction {
         location: Position,
         action_id: UByte,
@@ -116,30 +106,26 @@ pub enum Clientbound {
         block_type: VarInt,
     },
 
-    #[declio(id = "VarInt(0x0c)")]
+    #[declio(id = "VarInt(0x0b)")]
     BlockChange {
         location: Position,
         block_id: VarInt,
     },
 
-    #[declio(id = "VarInt(0x0d)")]
+    #[declio(id = "VarInt(0x0c)")]
     BossBar { uuid: Uuid, action: BossBarAction },
 
-    #[declio(id = "VarInt(0x0e)")]
+    #[declio(id = "VarInt(0x0d)")]
     ServerDifficulty { difficulty: UByte, locked: bool },
 
-    #[declio(id = "VarInt(0x0f)")]
-    ChatMessage { json_data: Chat, position: Byte },
-
-    #[declio(id = "VarInt(0x10)")]
-    MultiBlockChange {
-        chunk_x: Int,
-        chunk_z: Int,
-        #[declio(with = "LengthPrefix::<VarInt>")]
-        records: Vec<BlockChangeRecord>,
+    #[declio(id = "VarInt(0x0e)")]
+    ChatMessage {
+        json_data: Chat,
+        position: Byte,
+        sender: Uuid,
     },
 
-    #[declio(id = "VarInt(0x11)")]
+    #[declio(id = "VarInt(0x0f)")]
     TabComplete {
         id: VarInt,
         start: VarInt,
@@ -148,57 +134,57 @@ pub enum Clientbound {
         matches: Vec<TabCompleteMatch>,
     },
 
-    #[declio(id = "VarInt(0x12)")]
+    #[declio(id = "VarInt(0x10)")]
     DeclareCommands {
         #[declio(with = "Greedy")]
         todo: ByteArray,
     },
 
-    #[declio(id = "VarInt(0x13)")]
+    #[declio(id = "VarInt(0x11)")]
     WindowConfirmation {
         window_id: UByte,
         action_number: Short,
         accepted: Boolean,
     },
 
-    #[declio(id = "VarInt(0x14)")]
+    #[declio(id = "VarInt(0x12)")]
     CloseWindow { window_id: UByte },
 
-    #[declio(id = "VarInt(0x15)")]
+    #[declio(id = "VarInt(0x13)")]
     WindowItems {
         window_id: UByte,
         #[declio(with = "LengthPrefix::<Short>")]
         slot_data: Vec<Slot>,
     },
 
-    #[declio(id = "VarInt(0x16)")]
+    #[declio(id = "VarInt(0x14)")]
     WindowProperty {
         window_id: UByte,
         property: Short,
         value: Short,
     },
 
-    #[declio(id = "VarInt(0x17)")]
+    #[declio(id = "VarInt(0x15)")]
     SetSlot {
         window_id: UByte,
         slot: Short,
         slot_data: Slot,
     },
 
-    #[declio(id = "VarInt(0x18)")]
+    #[declio(id = "VarInt(0x16)")]
     SetCooldown {
         item_id: VarInt,
         cooldown_ticks: VarInt,
     },
 
-    #[declio(id = "VarInt(0x19)")]
+    #[declio(id = "VarInt(0x17)")]
     PluginMessage {
         channel: Identifier,
         #[declio(with = "Greedy")]
         data: ByteArray,
     },
 
-    #[declio(id = "VarInt(0x1a)")]
+    #[declio(id = "VarInt(0x18)")]
     NamedSoundEffect {
         sound_name: Identifier,
         sound_category: VarInt,
@@ -209,13 +195,13 @@ pub enum Clientbound {
         pitch: Float,
     },
 
-    #[declio(id = "VarInt(0x1b)")]
+    #[declio(id = "VarInt(0x19)")]
     Disconnect { reason: Chat },
 
-    #[declio(id = "VarInt(0x1c)")]
+    #[declio(id = "VarInt(0x1a)")]
     EntityStatus { entity_id: Int, entity_status: Byte },
 
-    #[declio(id = "VarInt(0x1d)")]
+    #[declio(id = "VarInt(0x1b)")]
     Explosion {
         x: Float,
         y: Float,
@@ -228,38 +214,38 @@ pub enum Clientbound {
         player_motion_z: Float,
     },
 
-    #[declio(id = "VarInt(0x1e)")]
+    #[declio(id = "VarInt(0x1c)")]
     UnloadChunk { chunk_x: Int, chunk_z: Int },
 
-    #[declio(id = "VarInt(0x1f)")]
+    #[declio(id = "VarInt(0x1d)")]
     ChangeGameState { reason: UByte, value: Float },
 
-    #[declio(id = "VarInt(0x20)")]
+    #[declio(id = "VarInt(0x1e)")]
     OpenHorseWindow {
         window_id: UByte,
         slots: VarInt,
         entity_id: Int,
     },
 
-    #[declio(id = "VarInt(0x21)")]
+    #[declio(id = "VarInt(0x1f)")]
     KeepAlive { keepalive_id: Long },
 
-    #[declio(id = "VarInt(0x22)")]
+    #[declio(id = "VarInt(0x20)")]
     ChunkData {
         chunk_x: Int,
         chunk_z: Int,
         full_chunk: Boolean,
         primary_bit_mask: VarInt,
         heightmaps: Nbt,
-        #[declio(skip_if = "!full_chunk", ctx(decode = "Len(1024)"))]
-        biomes: Option<Vec<Int>>,
+        #[declio(skip_if = "!full_chunk", with = "LengthPrefix::<VarInt>")]
+        biomes: Vec<VarInt>,
         #[declio(with = "LengthPrefix::<VarInt>")]
         data: ByteArray,
         #[declio(with = "LengthPrefix::<VarInt>")]
         block_entities: Vec<Nbt>,
     },
 
-    #[declio(id = "VarInt(0x23)")]
+    #[declio(id = "VarInt(0x21)")]
     Effect {
         effect_id: Int,
         location: Position,
@@ -267,7 +253,7 @@ pub enum Clientbound {
         disable_relative_volume: Boolean,
     },
 
-    #[declio(id = "VarInt(0x24)")]
+    #[declio(id = "VarInt(0x22)")]
     Particle {
         particle_id: Int,
         long_distance: Boolean,
@@ -283,10 +269,11 @@ pub enum Clientbound {
         todo_data: ByteArray,
     },
 
-    #[declio(id = "VarInt(0x25)")]
+    #[declio(id = "VarInt(0x23)")]
     UpdateLight {
         chunk_x: VarInt,
         chunk_z: VarInt,
+        trust_edges: Boolean,
         sky_light_mask: VarInt,
         block_light_mask: VarInt,
         empty_sky_light_mask: VarInt,
@@ -295,20 +282,27 @@ pub enum Clientbound {
         todo_light_arrays: ByteArray,
     },
 
-    #[declio(id = "VarInt(0x26)")]
+    #[declio(id = "VarInt(0x24)")]
     JoinGame {
         entity_id: Int,
+        is_hardcore: Boolean,
         gamemode: UByte,
-        dimension: Int,
+        previous_gamemode: UByte,
+        #[declio(with = "LengthPrefix::<VarInt>")]
+        worlds: Vec<Identifier>,
+        dimension_codec: Nbt,
+        dimension: Nbt,
+        world_name: Identifier,
         seed_hash: Long,
-        max_players: UByte,
-        level_type: String,
+        max_players: VarInt,
         view_distance: VarInt,
         reduced_debug_info: Boolean,
         enable_respawn_screen: Boolean,
+        is_debug: Boolean,
+        is_flat: Boolean,
     },
 
-    #[declio(id = "VarInt(0x27)")]
+    #[declio(id = "VarInt(0x25)")]
     MapData {
         map_id: VarInt,
         scale: Byte,
@@ -327,7 +321,7 @@ pub enum Clientbound {
         data: Vec<u8>,
     },
 
-    #[declio(id = "VarInt(0x28)")]
+    #[declio(id = "VarInt(0x26)")]
     TradeList {
         window_id: VarInt,
         #[declio(with = "LengthPrefix::<Byte>")]
@@ -338,7 +332,7 @@ pub enum Clientbound {
         can_restock: Boolean,
     },
 
-    #[declio(id = "VarInt(0x29)")]
+    #[declio(id = "VarInt(0x27)")]
     EntityPosition {
         entity_id: VarInt,
         delta_x: Short,
@@ -347,7 +341,7 @@ pub enum Clientbound {
         on_ground: Boolean,
     },
 
-    #[declio(id = "VarInt(0x2a)")]
+    #[declio(id = "VarInt(0x28)")]
     EntityPositionAndRotation {
         entity_id: VarInt,
         delta_x: Short,
@@ -358,7 +352,7 @@ pub enum Clientbound {
         on_ground: Boolean,
     },
 
-    #[declio(id = "VarInt(0x2b)")]
+    #[declio(id = "VarInt(0x29)")]
     EntityRotation {
         entity_id: VarInt,
         yaw: Angle,
@@ -366,10 +360,10 @@ pub enum Clientbound {
         on_ground: Boolean,
     },
 
-    #[declio(id = "VarInt(0x2c)")]
+    #[declio(id = "VarInt(0x2a)")]
     EntityMovement { entity_id: VarInt },
 
-    #[declio(id = "VarInt(0x2d)")]
+    #[declio(id = "VarInt(0x2b)")]
     VehicleMove {
         x: Double,
         y: Double,
@@ -378,39 +372,39 @@ pub enum Clientbound {
         pitch: Float,
     },
 
-    #[declio(id = "VarInt(0x2e)")]
+    #[declio(id = "VarInt(0x2c)")]
     OpenBook { hand: VarInt },
 
-    #[declio(id = "VarInt(0x2f)")]
+    #[declio(id = "VarInt(0x2d)")]
     OpenWindow {
         window_id: VarInt,
         window_type: VarInt,
         window_title: Chat,
     },
 
-    #[declio(id = "VarInt(0x30)")]
+    #[declio(id = "VarInt(0x2e)")]
     OpenSignEditor { location: Position },
 
-    #[declio(id = "VarInt(0x31)")]
+    #[declio(id = "VarInt(0x2f)")]
     CraftRecipeResponse {
         window_id: UByte,
         recipe: Identifier,
     },
 
-    #[declio(id = "VarInt(0x32)")]
+    #[declio(id = "VarInt(0x30)")]
     PlayerAbilities {
         flags: Byte,
         flying_speed: Float,
         field_of_view: Float,
     },
 
-    #[declio(id = "VarInt(0x33)")]
+    #[declio(id = "VarInt(0x31)")]
     CombatEvent { event: CombatEvent },
 
-    #[declio(id = "VarInt(0x34)")]
+    #[declio(id = "VarInt(0x32)")]
     PlayerInfo { action: PlayerInfoAction },
 
-    #[declio(id = "VarInt(0x35)")]
+    #[declio(id = "VarInt(0x33)")]
     FacePlayer {
         origin: VarInt,
         target_x: Double,
@@ -423,7 +417,7 @@ pub enum Clientbound {
         entity_origin: Option<VarInt>,
     },
 
-    #[declio(id = "VarInt(0x36)")]
+    #[declio(id = "VarInt(0x34)")]
     PlayerPositionAndLook {
         x: Double,
         y: Double,
@@ -434,63 +428,82 @@ pub enum Clientbound {
         teleport_id: VarInt,
     },
 
-    #[declio(id = "VarInt(0x37)")]
+    #[declio(id = "VarInt(0x35)")]
     UnlockRecipes {
         action: VarInt,
         crafting_recipe_book_open: Boolean,
         crafting_recipe_book_filter_active: Boolean,
         smelting_recipe_book_open: Boolean,
         smelting_recipe_book_filter_active: Boolean,
+        blast_furnace_recipe_book_open: Boolean,
+        blast_furnace_recipe_book_filter_active: Boolean,
+        smoker_recipe_book_open: Boolean,
+        smoker_recipe_book_filter_active: Boolean,
         #[declio(with = "LengthPrefix::<VarInt>")]
         recipe_list_1: Vec<Identifier>,
         #[declio(skip_if = "*action != VarInt(0)", with = "LengthPrefix::<VarInt>")]
         recipe_list_2: Vec<Identifier>,
     },
 
-    #[declio(id = "VarInt(0x38)")]
+    #[declio(id = "VarInt(0x36)")]
     DestroyEntities {
         #[declio(with = "LengthPrefix::<VarInt>")]
         entity_ids: Vec<VarInt>,
     },
 
-    #[declio(id = "VarInt(0x39)")]
+    #[declio(id = "VarInt(0x37)")]
     RemoveEntityEffect { entity_id: VarInt, effect_id: Byte },
 
-    #[declio(id = "VarInt(0x3a)")]
+    #[declio(id = "VarInt(0x38)")]
     ResourcePackSend { url: String, sha1_hash: String },
 
-    #[declio(id = "VarInt(0x3b)")]
+    #[declio(id = "VarInt(0x39)")]
     Respawn {
-        dimension: Int,
+        dimension: Nbt,
+        world_name: Identifier,
         seed_hash: Long,
         gamemode: UByte,
-        level_type: String,
+        previous_gamemode: UByte,
+        is_debug: Boolean,
+        is_flat: Boolean,
+        copy_metadata: Boolean,
+    },
+
+    #[declio(id = "VarInt(0x3a)")]
+    EntityHeadLook { entity_id: VarInt, head_yaw: Angle },
+
+    #[declio(id = "VarInt(0x3b)")]
+    MultiBlockChange {
+        chunk_section: Long,
+        no_trust_edges: Boolean,
+        #[declio(with = "LengthPrefix::<VarInt>")]
+        records: Vec<VarLong>,
     },
 
     #[declio(id = "VarInt(0x3c)")]
-    EntityHeadLook { entity_id: VarInt, head_yaw: Angle },
-
-    #[declio(id = "VarInt(0x3d)")]
     SelectAdvancementTab {
         has_id: Boolean,
         #[declio(skip_if = "!has_id")]
         id: Option<String>,
     },
 
-    #[declio(id = "VarInt(0x3e)")]
+    #[declio(id = "VarInt(0x3d)")]
     WorldBorder { action: WorldBorderAction },
 
-    #[declio(id = "VarInt(0x3f)")]
+    #[declio(id = "VarInt(0x3e)")]
     Camera { camera_id: VarInt },
 
-    #[declio(id = "VarInt(0x40)")]
+    #[declio(id = "VarInt(0x3f)")]
     HeldItemChange { slot: Byte },
 
-    #[declio(id = "VarInt(0x41)")]
+    #[declio(id = "VarInt(0x40)")]
     UpdateViewPosition { chunk_x: VarInt, chunk_z: VarInt },
 
-    #[declio(id = "VarInt(0x42)")]
+    #[declio(id = "VarInt(0x41)")]
     UpdateViewDistance { view_distance: VarInt },
+
+    #[declio(id = "VarInt(0x42)")]
+    SpawnPosition { location: Position },
 
     #[declio(id = "VarInt(0x43)")]
     DisplayScoreboard { position: Byte, name: String },
@@ -519,8 +532,8 @@ pub enum Clientbound {
     #[declio(id = "VarInt(0x47)")]
     EntityEquipment {
         entity_id: VarInt,
-        slot: VarInt,
-        item: Slot,
+        #[declio(with = "Greedy")]
+        todo: ByteArray,
     },
 
     #[declio(id = "VarInt(0x48)")]
@@ -570,15 +583,12 @@ pub enum Clientbound {
     },
 
     #[declio(id = "VarInt(0x4e)")]
-    SpawnPosition { location: Position },
-
-    #[declio(id = "VarInt(0x4f)")]
     TimeUpdate { world_age: Long, time_of_day: Long },
 
-    #[declio(id = "VarInt(0x50)")]
+    #[declio(id = "VarInt(0x4f)")]
     Title { action: TitleAction },
 
-    #[declio(id = "VarInt(0x51)")]
+    #[declio(id = "VarInt(0x50)")]
     EntitySoundEffect {
         sound_id: VarInt,
         sound_category: VarInt,
@@ -587,7 +597,7 @@ pub enum Clientbound {
         pitch: Float,
     },
 
-    #[declio(id = "VarInt(0x52)")]
+    #[declio(id = "VarInt(0x51)")]
     SoundEffect {
         sound_id: VarInt,
         sound_category: VarInt,
@@ -598,7 +608,7 @@ pub enum Clientbound {
         pitch: Float,
     },
 
-    #[declio(id = "VarInt(0x53)")]
+    #[declio(id = "VarInt(0x52)")]
     StopSound {
         flags: Byte,
         #[declio(skip_if = "*flags & 0x1 == 0")]
@@ -607,20 +617,20 @@ pub enum Clientbound {
         sound: Option<Identifier>,
     },
 
-    #[declio(id = "VarInt(0x54)")]
+    #[declio(id = "VarInt(0x53)")]
     PlayerListHeaderAndFooter { header: Chat, footer: Chat },
 
-    #[declio(id = "VarInt(0x55)")]
+    #[declio(id = "VarInt(0x54)")]
     NbtQueryResponse { transaction_id: VarInt, nbt: Nbt },
 
-    #[declio(id = "VarInt(0x56)")]
+    #[declio(id = "VarInt(0x55)")]
     CollectItem {
         collected_entity_id: VarInt,
         collector_entity_id: VarInt,
         pickup_item_count: VarInt,
     },
 
-    #[declio(id = "VarInt(0x57)")]
+    #[declio(id = "VarInt(0x56)")]
     EntityTeleport {
         entity_id: VarInt,
         x: Double,
@@ -631,19 +641,19 @@ pub enum Clientbound {
         on_ground: Boolean,
     },
 
-    #[declio(id = "VarInt(0x58)")]
+    #[declio(id = "VarInt(0x57)")]
     Advancements {
         #[declio(with = "Greedy")]
         todo: ByteArray,
     },
 
-    #[declio(id = "VarInt(0x59)")]
+    #[declio(id = "VarInt(0x58)")]
     EntityProperties {
         #[declio(with = "Greedy")]
         todo: ByteArray,
     },
 
-    #[declio(id = "VarInt(0x5a)")]
+    #[declio(id = "VarInt(0x59)")]
     EntityEffect {
         entity_id: VarInt,
         effect_id: Byte,
@@ -652,13 +662,13 @@ pub enum Clientbound {
         flags: Byte,
     },
 
-    #[declio(id = "VarInt(0x5b)")]
+    #[declio(id = "VarInt(0x5a)")]
     DeclareRecipes {
         #[declio(with = "Greedy")]
         todo: ByteArray,
     },
 
-    #[declio(id = "VarInt(0x5c)")]
+    #[declio(id = "VarInt(0x5b)")]
     Tags {
         #[declio(with = "LengthPrefix::<VarInt>")]
         block_tags: Vec<Tag>,
@@ -755,15 +765,23 @@ pub enum Serverbound {
     InteractEntity {
         entity_id: VarInt,
         action: InteractEntityAction,
+        sneaking: Boolean,
     },
 
     #[declio(id = "VarInt(0x0f)")]
-    KeepAlive { keepalive_id: Long },
+    GenerateStructure {
+        location: Position,
+        levels: VarInt,
+        keep_jigsaws: Boolean,
+    },
 
     #[declio(id = "VarInt(0x10)")]
-    LockDifficulty { locked: Boolean },
+    KeepAlive { keepalive_id: Long },
 
     #[declio(id = "VarInt(0x11)")]
+    LockDifficulty { locked: Boolean },
+
+    #[declio(id = "VarInt(0x12)")]
     PlayerPosition {
         x: Double,
         y: Double,
@@ -771,7 +789,7 @@ pub enum Serverbound {
         on_ground: Boolean,
     },
 
-    #[declio(id = "VarInt(0x12)")]
+    #[declio(id = "VarInt(0x13)")]
     PlayerPositionAndRotation {
         x: Double,
         y: Double,
@@ -781,17 +799,17 @@ pub enum Serverbound {
         on_ground: Boolean,
     },
 
-    #[declio(id = "VarInt(0x13)")]
+    #[declio(id = "VarInt(0x14)")]
     PlayerRotation {
         yaw: Float,
         pitch: Float,
         on_ground: Boolean,
     },
 
-    #[declio(id = "VarInt(0x14)")]
+    #[declio(id = "VarInt(0x15)")]
     PlayerMovement { on_ground: Boolean },
 
-    #[declio(id = "VarInt(0x15)")]
+    #[declio(id = "VarInt(0x16)")]
     VehicleMove {
         x: Double,
         y: Double,
@@ -800,82 +818,82 @@ pub enum Serverbound {
         pitch: Float,
     },
 
-    #[declio(id = "VarInt(0x16)")]
+    #[declio(id = "VarInt(0x17)")]
     SteerBoat {
         left_paddle_turning: Boolean,
         right_paddle_turning: Boolean,
     },
 
-    #[declio(id = "VarInt(0x17)")]
+    #[declio(id = "VarInt(0x18)")]
     PickItem { slot: VarInt },
 
-    #[declio(id = "VarInt(0x18)")]
+    #[declio(id = "VarInt(0x19)")]
     CraftRecipeRequest {
         window_id: UByte,
         recipe: Identifier,
         make_all: Boolean,
     },
 
-    #[declio(id = "VarInt(0x19)")]
-    PlayerAbilities {
-        flags: Byte,
-        flying_speed: Float,
-        walking_speed: Float,
-    },
-
     #[declio(id = "VarInt(0x1a)")]
+    PlayerAbilities { flags: Byte },
+
+    #[declio(id = "VarInt(0x1b)")]
     PlayerDigging {
         status: VarInt,
         location: Position,
         face: Byte,
     },
 
-    #[declio(id = "VarInt(0x1b)")]
+    #[declio(id = "VarInt(0x1c)")]
     EntityAction {
         entity_id: VarInt,
         action_id: VarInt,
         jump_boost: VarInt,
     },
 
-    #[declio(id = "VarInt(0x1c)")]
+    #[declio(id = "VarInt(0x1d)")]
     SteerVehicle {
         sideways: Float,
         forward: Float,
         flags: UByte,
     },
 
-    #[declio(id = "VarInt(0x1d)")]
-    RecipeBookData {
-        #[declio(with = "Greedy")]
-        todo: ByteArray,
-    },
-
     #[declio(id = "VarInt(0x1e)")]
-    NameItem { item_name: String },
+    SetDisplayedRecipe { recipe_id: Identifier },
 
     #[declio(id = "VarInt(0x1f)")]
-    ResourcePackStatus { result: VarInt },
+    SetRecipeBookState {
+        book_id: VarInt,
+        book_open: Boolean,
+        filter_active: Boolean,
+    },
 
     #[declio(id = "VarInt(0x20)")]
+    NameItem { item_name: String },
+
+    #[declio(id = "VarInt(0x21)")]
+    ResourcePackStatus { result: VarInt },
+
+    #[declio(id = "VarInt(0x22)")]
     AdvancementTab {
         action: VarInt,
         #[declio(skip_if = "*action != VarInt(0)")]
         tab_id: Option<Identifier>,
     },
 
-    #[declio(id = "VarInt(0x21)")]
+    #[declio(id = "VarInt(0x23)")]
     SelectTrade { slot: VarInt },
 
-    #[declio(id = "VarInt(0x22)")]
+    #[declio(id = "VarInt(0x24)")]
     SetBeaconEffect {
         primary_effect: VarInt,
         secondary_effect: VarInt,
     },
 
-    #[declio(id = "VarInt(0x23)")]
+    #[declio(id = "VarInt(0x25)")]
     HeldItemChange { slot: Short },
 
-    #[declio(id = "VarInt(0x24)")]
+    #[declio(id = "VarInt(0x26)")]
     UpdateCommandBlock {
         location: Position,
         command: String,
@@ -883,25 +901,27 @@ pub enum Serverbound {
         flags: Byte,
     },
 
-    #[declio(id = "VarInt(0x25)")]
+    #[declio(id = "VarInt(0x27)")]
     UpdateCommandBlockMinecart {
         entity_id: VarInt,
         command: String,
         track_output: Boolean,
     },
 
-    #[declio(id = "VarInt(0x26)")]
+    #[declio(id = "VarInt(0x28)")]
     CreativeInventoryAction { slot: Short, clicked_item: Slot },
 
-    #[declio(id = "VarInt(0x27)")]
+    #[declio(id = "VarInt(0x29)")]
     UpdateJigsawBlock {
         location: Position,
-        attachment_type: Identifier,
-        target_pool: Identifier,
+        name: Identifier,
+        target: Identifier,
+        pool: Identifier,
         final_state: String,
+        joint_type: String,
     },
 
-    #[declio(id = "VarInt(0x28)")]
+    #[declio(id = "VarInt(0x2a)")]
     UpdateStructureBlock {
         location: Position,
         action: VarInt,
@@ -921,7 +941,7 @@ pub enum Serverbound {
         flags: Byte,
     },
 
-    #[declio(id = "VarInt(0x29)")]
+    #[declio(id = "VarInt(0x2b)")]
     UpdateSign {
         location: Position,
         line_1: String,
@@ -930,13 +950,13 @@ pub enum Serverbound {
         line_4: String,
     },
 
-    #[declio(id = "VarInt(0x2a)")]
+    #[declio(id = "VarInt(0x2c)")]
     Animation { hand: VarInt },
 
-    #[declio(id = "VarInt(0x2b)")]
+    #[declio(id = "VarInt(0x2d)")]
     Spectate { target_player: Uuid },
 
-    #[declio(id = "VarInt(0x2c)")]
+    #[declio(id = "VarInt(0x2e)")]
     PlayerBlockPlacement {
         hand: VarInt,
         location: Position,
@@ -947,7 +967,7 @@ pub enum Serverbound {
         inside_block: Boolean,
     },
 
-    #[declio(id = "VarInt(0x2d)")]
+    #[declio(id = "VarInt(0x2f)")]
     UseItem { hand: VarInt },
 }
 
@@ -1089,6 +1109,7 @@ pub enum PlayerInfoAction {
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct PlayerInfoAddPlayer {
+    pub uuid: Uuid,
     pub name: String,
     #[declio(with = "LengthPrefix::<VarInt>")]
     pub properties: Vec<PlayerProperty>,
@@ -1110,23 +1131,28 @@ pub struct PlayerProperty {
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct PlayerInfoUpdateGamemode {
+    pub uuid: Uuid,
     pub gamemode: VarInt,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct PlayerInfoUpdateLatency {
+    pub uuid: Uuid,
     pub ping: VarInt,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct PlayerInfoUpdateDisplayName {
+    pub uuid: Uuid,
     pub has_display_name: Boolean,
     #[declio(skip_if = "!has_display_name")]
     pub display_name: Option<Chat>,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct PlayerInfoRemovePlayer {}
+pub struct PlayerInfoRemovePlayer {
+    pub uuid: Uuid,
+}
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 #[declio(id_type = "VarInt")]

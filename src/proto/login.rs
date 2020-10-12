@@ -18,7 +18,7 @@ pub enum Clientbound {
     },
 
     #[declio(id = "VarInt(0x02)")]
-    LoginSuccess { uuid: String, username: String },
+    LoginSuccess { uuid: Uuid, username: String },
 
     #[declio(id = "VarInt(0x03)")]
     SetCompression { threshold: VarInt },

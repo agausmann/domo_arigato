@@ -13,7 +13,7 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::convert::TryInto;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::net::TcpStream;
 
 type AesCfb8 = Cfb8<Aes128>;
@@ -165,7 +165,11 @@ where
 {
     let len = VarInt::decode((), &mut reader)?.0;
     let mut reader = reader.take(len.try_into()?);
-    Ok(T::decode((), &mut reader)?)
+    let packet = T::decode((), &mut reader)?;
+
+    let remaining_bytes = reader.bytes().filter_map(Result::ok).count();
+    debug_assert!(remaining_bytes == 0, "not all bytes read by packet parser");
+    Ok(packet)
 }
 
 pub fn write_packet<T, W>(packet: &T, mut writer: W) -> anyhow::Result<()>
@@ -189,12 +193,16 @@ where
     let len = VarInt::decode((), &mut reader)?.0;
     let mut reader = reader.take(len.try_into()?);
     let uncompressed_len = VarInt::decode((), &mut reader)?.0;
+    let packet;
     if uncompressed_len == 0 {
-        Ok(T::decode((), &mut reader)?)
+        packet = T::decode((), &mut reader)?;
     } else {
-        let mut reader = ZlibDecoder::new(reader);
-        Ok(T::decode((), &mut reader)?)
+        let mut reader = ZlibDecoder::new(&mut reader);
+        packet = T::decode((), &mut reader)?;
     }
+    let remaining_bytes = reader.bytes().filter_map(Result::ok).count();
+    debug_assert!(remaining_bytes == 0, "not all bytes read by packet parser");
+    Ok(packet)
 }
 
 pub fn write_compressed_packet<T, W>(
