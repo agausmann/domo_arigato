@@ -18,6 +18,38 @@ use std::net::TcpStream;
 
 type AesCfb8 = Cfb8<Aes128>;
 
+pub trait SetNonblocking {
+    fn set_nonblocking(&mut self, nonblocking: bool) -> io::Result<()>;
+
+    fn with_nonblocking<F, R>(&mut self, f: F) -> io::Result<R>
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        self.set_nonblocking(true)?;
+        let retval = f(self);
+        self.set_nonblocking(false)?;
+        Ok(retval)
+    }
+}
+
+pub trait Peekable {
+    fn can_read(&mut self) -> io::Result<bool>;
+}
+
+impl SetNonblocking for TcpStream {
+    fn set_nonblocking(&mut self, nonblocking: bool) -> io::Result<()> {
+        TcpStream::set_nonblocking(self, nonblocking)
+    }
+}
+
+impl Peekable for TcpStream {
+    fn can_read(&mut self) -> io::Result<bool> {
+        let mut buf = [0; 1];
+        let len = self.with_nonblocking(|this| this.peek(&mut buf))??;
+        Ok(len != 0)
+    }
+}
+
 struct EncryptedReader<R> {
     inner: R,
     encryption: Option<AesCfb8>,
@@ -50,6 +82,15 @@ where
             cipher.decrypt(&mut buf[..len]);
         }
         Ok(len)
+    }
+}
+
+impl<R> Peekable for EncryptedReader<R>
+where
+    R: Peekable,
+{
+    fn can_read(&mut self) -> io::Result<bool> {
+        self.inner.can_read()
     }
 }
 
@@ -142,6 +183,18 @@ impl<R, W> TransportSession<R, W> {
             read_compressed_packet(&mut self.reader)
         } else {
             read_packet(&mut self.reader)
+        }
+    }
+
+    pub fn try_read_packet<T>(&mut self) -> anyhow::Result<Option<T>>
+    where
+        R: io::Read + Peekable,
+        T: Decode,
+    {
+        if self.reader.can_read()? {
+            self.read_packet().map(Some)
+        } else {
+            Ok(None)
         }
     }
 
