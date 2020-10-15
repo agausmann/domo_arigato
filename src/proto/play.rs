@@ -286,7 +286,7 @@ pub enum Clientbound {
     JoinGame {
         entity_id: Int,
         is_hardcore: Boolean,
-        gamemode: UByte,
+        gamemode: Gamemode,
         previous_gamemode: UByte,
         #[declio(with = "LengthPrefix::<VarInt>")]
         worlds: Vec<Identifier>,
@@ -1027,6 +1027,22 @@ pub struct ExplosionRecord {
     pub x: Byte,
     pub y: Byte,
     pub z: Byte,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
+#[declio(id_type = "UByte")]
+pub enum Gamemode {
+    #[declio(id = "0")]
+    Survival,
+
+    #[declio(id = "1")]
+    Creative,
+
+    #[declio(id = "2")]
+    Adventure,
+
+    #[declio(id = "3")]
+    Spectator,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]

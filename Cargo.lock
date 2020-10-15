@@ -228,6 +228,8 @@ dependencies = [
 [[package]]
 name = "declio"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efd44cdb7f2aa6c86350996e5592dde7da87a5a7b2cb20d60c0f31dc122de328"
 dependencies = [
  "declio_derive",
 ]
@@ -235,9 +237,10 @@ dependencies = [
 [[package]]
 name = "declio_derive"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec637d10ec0979743dc2c4e8b1a16199fc622087c88e03d8b9f66d70558b9cdb"
 dependencies = [
  "darling",
- "lazy_static",
  "proc-macro2",
  "quote",
  "syn",
